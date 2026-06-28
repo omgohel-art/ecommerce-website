@@ -21,7 +21,9 @@ export default function Hero() {
   const sectionRef = useRef<HTMLElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   const parallaxRef = useRef<HTMLDivElement>(null);
-  const curtainRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const curtainTopRef = useRef<HTMLDivElement>(null);
+  const curtainBottomRef = useRef<HTMLDivElement>(null);
   const reducedMotion = usePrefersReducedMotion();
   const lenis = useLenis();
 
@@ -42,63 +44,126 @@ export default function Hero() {
   useEffect(() => {
     const ctx = gsap.context(() => {
       if (reducedMotion) {
-        gsap.set([curtainRef.current, imageRef.current, ".hero-char", ".hero-fade"], {
-          clearProps: "all",
-          opacity: 1,
-          y: 0,
-          yPercent: 0,
-          scale: 1,
-          scaleY: 0,
-        });
+        gsap.set(
+          [
+            curtainTopRef.current,
+            curtainBottomRef.current,
+            imageRef.current,
+            overlayRef.current,
+            ".hero-char",
+            ".hero-fade",
+            ".hero-eyebrow",
+          ],
+          {
+            clearProps: "all",
+            opacity: 1,
+            y: 0,
+            yPercent: 0,
+            scale: 1,
+            scaleY: 0,
+            clipPath: "none",
+            filter: "none",
+            letterSpacing: undefined,
+          }
+        );
         return;
       }
 
+      // Initial hidden states
+      gsap.set(imageRef.current, {
+        scale: 1.28,
+        opacity: 0,
+        clipPath: "inset(18% 0 18% 0)",
+      });
+      gsap.set(overlayRef.current, { opacity: 0 });
+      gsap.set(".hero-char", {
+        yPercent: 120,
+        opacity: 0,
+        rotateX: 40,
+        filter: "blur(8px)",
+      });
+      gsap.set(".hero-eyebrow", { letterSpacing: "0.8em", opacity: 0 });
+
       const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
-      tl.fromTo(
-        curtainRef.current,
-        { scaleY: 1 },
+      // Split-panel curtain parting (top up, bottom down)
+      tl.to(
+        curtainTopRef.current,
         {
-          scaleY: 0,
-          duration: 1.4,
+          yPercent: -100,
+          duration: 1.1,
           ease: "power4.inOut",
-          transformOrigin: "top",
-        }
+        },
+        0
+      ).to(
+        curtainBottomRef.current,
+        {
+          yPercent: 100,
+          duration: 1.1,
+          ease: "power4.inOut",
+        },
+        0
+      );
+
+      // Image: clip-path uncover + scale settle + overlay fade-in
+      tl.to(
+        imageRef.current,
+        {
+          opacity: 1,
+          scale: 1,
+          clipPath: "inset(0% 0% 0% 0)",
+          duration: 1.8,
+          ease: "power2.out",
+        },
+        0.35
       )
-        .fromTo(
-          imageRef.current,
-          { scale: 1.28, opacity: 0 },
-          { scale: 1, opacity: 1, duration: 2, ease: "power2.out" },
-          "-=0.75"
+        .to(
+          overlayRef.current,
+          { opacity: 1, duration: 1.2, ease: "power2.out" },
+          0.55
         )
-        .fromTo(
+        // Headline char rise + focus-pull (blur -> sharp)
+        .to(
           ".hero-char",
-          { yPercent: 120, opacity: 0, rotateX: 40 },
           {
             yPercent: 0,
             opacity: 1,
             rotateX: 0,
-            duration: 1,
-            stagger: 0.025,
+            filter: "blur(0px)",
+            duration: 1.1,
+            stagger: 0.022,
             ease: "power4.out",
           },
-          "-=1.3"
+          0.7
+        )
+        // Eyebrow tracking-in
+        .to(
+          ".hero-eyebrow",
+          {
+            letterSpacing: "0.4em",
+            opacity: 1,
+            duration: 1.1,
+            ease: "power3.out",
+          },
+          0.5
         )
         .fromTo(
           ".hero-fade",
           { y: 28, opacity: 0 },
           { y: 0, opacity: 1, duration: 0.9, stagger: 0.08 },
-          "-=0.55"
+          1.05
         )
         .fromTo(
           ".hero-frame",
           { scaleX: 0 },
           { scaleX: 1, duration: 1.2, ease: "power3.inOut" },
-          "-=0.8"
+          1.0
         );
 
+      // Scroll-driven parallax + gentle zoom + dim
       gsap.to(imageRef.current, {
         yPercent: 14,
+        scale: 1.12,
         ease: "none",
         scrollTrigger: {
           trigger: sectionRef.current,
@@ -108,13 +173,33 @@ export default function Hero() {
         },
       });
 
+      gsap.to(overlayRef.current, {
+        opacity: 1.6,
+        ease: "none",
+        scrollTrigger: {
+          trigger: sectionRef.current,
+          start: "top top",
+          end: "bottom top",
+          scrub: true,
+        },
+      });
+
+      // Mouse parallax with depth layers (image vs overlay move at different rates)
       if (isFinePointer() && parallaxRef.current) {
-        const quickX = gsap.quickTo(parallaxRef.current, "x", {
+        const quickImgX = gsap.quickTo(parallaxRef.current, "x", {
           duration: 1.2,
           ease: "power3.out",
         });
-        const quickY = gsap.quickTo(parallaxRef.current, "y", {
+        const quickImgY = gsap.quickTo(parallaxRef.current, "y", {
           duration: 1.2,
+          ease: "power3.out",
+        });
+        const quickOvX = gsap.quickTo(overlayRef.current, "x", {
+          duration: 1.6,
+          ease: "power3.out",
+        });
+        const quickOvY = gsap.quickTo(overlayRef.current, "y", {
+          duration: 1.6,
           ease: "power3.out",
         });
 
@@ -123,8 +208,10 @@ export default function Hero() {
           if (!rect) return;
           const relX = (e.clientX - rect.left) / rect.width - 0.5;
           const relY = (e.clientY - rect.top) / rect.height - 0.5;
-          quickX(relX * 24);
-          quickY(relY * 16);
+          quickImgX(relX * 24);
+          quickImgY(relY * 16);
+          quickOvX(relX * 10);
+          quickOvY(relY * 7);
         };
 
         const section = sectionRef.current;
@@ -145,9 +232,15 @@ export default function Hero() {
       className="relative flex h-screen min-h-[700px] items-end overflow-hidden"
       aria-label="Introduction"
     >
+      {/* Split-panel curtain: top half rises, bottom half drops */}
       <div
-        ref={curtainRef}
-        className="absolute inset-0 z-20 bg-ivory gpu"
+        ref={curtainTopRef}
+        className="absolute inset-x-0 top-0 z-20 h-1/2 bg-ivory gpu"
+        aria-hidden
+      />
+      <div
+        ref={curtainBottomRef}
+        className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-ivory gpu"
         aria-hidden
       />
 
@@ -162,7 +255,10 @@ export default function Hero() {
             sizes="100vw"
           />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/30 to-ink/10" />
+        <div
+          ref={overlayRef}
+          className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/30 to-ink/10"
+        />
         <div className="absolute inset-0 bg-gradient-to-r from-ink/55 to-transparent" />
       </div>
 
@@ -174,7 +270,7 @@ export default function Hero() {
       />
 
       <div className="relative z-30 mx-auto w-full max-w-[1600px] px-6 pb-16 md:px-12 md:pb-24">
-        <p className="hero-fade mb-8 text-[10px] tracking-[0.4em] text-ivory/45 uppercase">
+        <p className="hero-eyebrow mb-8 text-[10px] tracking-[0.4em] text-ivory/45 uppercase">
           <span className="text-bronze-light">01</span>
           <span className="mx-3 opacity-30">—</span>
           Prologue
