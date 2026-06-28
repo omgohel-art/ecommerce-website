@@ -3,6 +3,8 @@ import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
 import ExperienceShell from "@/components/ExperienceShell";
 
+export const dynamic = "force-static";
+
 export const metadata: Metadata = {
   title: "ATELIER NOCTURN — Luxury Fashion",
   description:
